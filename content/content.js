@@ -258,8 +258,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, timeoutMs = 15_000 }) {
   if (!path) throw new Error('path required');
-  const url = `https://${host}${path}`;
-  const sameOrigin = host === location.hostname;
+  const usePageOrigin = isKintaraPageHost(location.hostname) && isKintaraApiHost(host);
+  const requestHost = usePageOrigin ? location.hostname : host;
+  const url = `https://${requestHost}${path}`;
+  const sameOrigin = requestHost === location.hostname;
   const credentials = host === 'fanout.kintara.com' ? 'omit' : 'include';
   const init = {
     method,
@@ -288,6 +290,20 @@ async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, 
   let json = null;
   try { json = text ? JSON.parse(text) : null; } catch { /* leave as text */ }
   return { status: res.status, ok: res.ok, json, text };
+}
+
+function isKintaraPageHost(hostname) {
+  return hostname === 'kintara.com' ||
+    hostname.endsWith('.kintara.com') ||
+    hostname === 'kintara.gg' ||
+    hostname.endsWith('.kintara.gg');
+}
+
+function isKintaraApiHost(hostname) {
+  return hostname === 'kintara.com' ||
+    hostname.endsWith('.kintara.com') ||
+    hostname === 'kintara.gg' ||
+    hostname.endsWith('.kintara.gg');
 }
 
 // ----- 2. HUD overlay ----------------------------------------------------
