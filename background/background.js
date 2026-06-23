@@ -526,20 +526,19 @@ function spawnPointForRealm() {
 async function ensureToolForPolicy(policy) {
   const req = TOOL_BY_POLICY[policy];
   if (!req) return;
-  const res = await kintaraAdapter.client.me();
-  const json = res?.json || res;
-  const backpack = json?.backpack;
-  const hotbar = Array.isArray(backpack?.hotbar) ? backpack.hotbar : [];
-  const slot = hotbar.findIndex((item) => req.matcher(String(item?.t || '')));
-  if (slot < 0) {
+  const toolByPolicy = {
+    harvest: 'tool_axe',
+    harvest_wood: 'tool_axe',
+    harvest_stone: 'tool_pickaxe',
+    harvest_fish: 'tool_fishing_rod',
+  };
+  try {
+    const selected = await kintaraAdapter.client.selectTool(toolByPolicy[policy]);
+    pushFeed(`selected ${selected.label}`);
+  } catch (err) {
     pushFeed(`tool missing · equip a ${req.label} for this mode`);
-    return;
-  }
-  await kintaraAdapter.client.pageAction({ op: 'select_hotbar', slot }).catch((err) => {
-    pushFeed(`hotbar select skipped · press ${slot + 1} if needed`);
     console.warn('[kinsai/bg] hotbar select failed', err);
-  });
-  pushFeed(backpack.equippedHotbar === slot ? `${req.label} already equipped` : `selected ${req.label}`);
+  }
 }
 
 function b64ToBytes(b64) {

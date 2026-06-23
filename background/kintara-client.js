@@ -14,6 +14,20 @@ const KINTARA_TAB_URLS = [
   'https://kintara.gg/*',
   'https://*.kintara.gg/*',
 ];
+const TOOL_BY_ID = {
+  tool_axe: {
+    label: 'axe',
+    matcher: (t) => t.includes('axe'),
+  },
+  tool_pickaxe: {
+    label: 'pickaxe',
+    matcher: (t) => t.includes('pickaxe'),
+  },
+  tool_fishing_rod: {
+    label: 'fishing rod',
+    matcher: (t) => t.includes('fish') || t.includes('rod'),
+  },
+};
 
 export class KintaraClient {
   constructor() {
@@ -134,9 +148,6 @@ export class KintaraClient {
   saveHp(hp, wildShield = 0, le = 1) {
     return this._call({ host: KINTARA_HOST, path: '/api/auth/save-hp', method: 'POST', body: { hp, wildShield, le } });
   }
-  saveBackpack(backpack) {
-    return this._call({ host: KINTARA_HOST, path: '/api/auth/save-backpack', method: 'POST', body: backpack });
-  }
   grantTool(type) {
     return this._call({ host: KINTARA_HOST, path: '/api/auth/grant-tool', method: 'POST', body: { type } });
   }
@@ -184,8 +195,7 @@ export class KintaraClient {
     const tab = await this._ensureTab(false);
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await this._sendOnce(tab.id, { type: 'KINTARA_ACTION', payload });
-        return;
+        return await this._sendOnce(tab.id, { type: 'KINTARA_ACTION', payload });
       } catch (err) {
         if (this._isOrphan(err) && attempt === 0) {
           await this._reinject(tab.id);
@@ -202,6 +212,21 @@ export class KintaraClient {
         throw err;
       }
     }
+  }
+
+  async selectTool(tool) {
+    const req = TOOL_BY_ID[tool];
+    if (!req) throw new Error(`unknown tool: ${tool}`);
+
+    const res = await this.me();
+    const json = res?.json || res;
+    const backpack = json?.backpack || {};
+    const hotbar = Array.isArray(backpack.hotbar) ? backpack.hotbar : [];
+    const slot = hotbar.findIndex((item) => req.matcher(String(item?.t || '')));
+    if (slot < 0) throw new Error(`tool missing · equip a ${req.label}`);
+
+    const data = await this.pageAction({ op: 'select_hotbar', slot, tool });
+    return { ...data, slot, label: req.label };
   }
 }
 

@@ -14,7 +14,7 @@
 // piggy-back.
 
 (() => {
-  const HOOK_VERSION = '2026-06-23-socket-list-v3';
+  const HOOK_VERSION = '2026-06-23-tool-select-v4';
   window.__KINTARA_E2E__ = true;
 
   if (window.__KINSAI_WS_HOOKED__ === HOOK_VERSION) return;
@@ -145,15 +145,23 @@
     const key = String(keyNum);
     const code = `Digit${keyNum}`;
     const keyCode = 48 + keyNum;
+    const canvas = document.querySelector('canvas');
+    if (canvas) {
+      canvas.setAttribute('tabindex', canvas.getAttribute('tabindex') || '0');
+      canvas.focus?.();
+    } else {
+      document.body?.focus?.();
+    }
     const targets = [
       document.activeElement,
-      document.querySelector('canvas'),
+      canvas,
       document.body,
       document,
       window,
     ].filter(Boolean);
     for (const target of targets) {
       dispatchKeyboardLike(target, 'keydown', key, code, keyCode);
+      dispatchKeyboardLike(target, 'keypress', key, code, keyCode);
       dispatchKeyboardLike(target, 'keyup', key, code, keyCode);
     }
     return { slot, key };

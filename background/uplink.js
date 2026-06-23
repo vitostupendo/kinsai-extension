@@ -150,11 +150,21 @@ export class Uplink {
   }
 
   async _handleClientAction(msg) {
+    const payload = msg.payload || {};
     try {
-      await this.kintaraClient.pageAction(msg.payload || {});
+      if (payload.op === 'select_tool') {
+        await this.kintaraClient.selectTool(payload.tool);
+      } else {
+        await this.kintaraClient.pageAction(payload);
+      }
       this.onInjectResult({ ok: true });
     } catch (err) {
-      this.onFeed(`client action failed · ${err?.message || String(err)}`);
+      const text = err?.message || String(err);
+      if (payload.op === 'select_tool') {
+        this.onFeed(text);
+      } else {
+        this.onFeed(`client action failed · ${text}`);
+      }
       this.onInjectResult({ ok: false, error: err?.message || String(err) });
     }
   }
