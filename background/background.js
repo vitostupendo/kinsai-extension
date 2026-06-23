@@ -536,9 +536,23 @@ async function ensureToolForPolicy(policy) {
     const selected = await kintaraAdapter.client.selectTool(toolByPolicy[policy]);
     pushFeed(`selected ${selected.label}`);
   } catch (err) {
-    pushFeed(`tool missing · equip a ${req.label} for this mode`);
+    const text = err?.message || String(err);
+    if (isKintaraReadError(text)) {
+      pushFeed('kintara data unavailable · refresh game tab');
+    } else {
+      pushFeed(`tool missing · equip a ${req.label} for this mode`);
+    }
     console.warn('[kinsai/bg] hotbar select failed', err);
   }
+}
+
+function isKintaraReadError(text) {
+  const lower = String(text || '').toLowerCase();
+  return lower.includes('failed to fetch') ||
+    lower.includes('no kintara.com tab') ||
+    lower.includes('no response from content script') ||
+    lower.includes('receiving end does not exist') ||
+    lower.includes('could not establish connection');
 }
 
 function b64ToBytes(b64) {

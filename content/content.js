@@ -259,6 +259,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, timeoutMs = 15_000 }) {
   if (!path) throw new Error('path required');
   const url = `https://${host}${path}`;
+  const sameOrigin = host === location.hostname;
   const credentials = host === 'fanout.kintara.com' ? 'omit' : 'include';
   const init = {
     method,
@@ -274,7 +275,12 @@ async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, 
   init.signal = controller.signal;
   let res;
   try {
-    res = await fetch(url, init);
+    try {
+      res = await fetch(sameOrigin ? path : url, init);
+    } catch (err) {
+      if (!sameOrigin) throw err;
+      res = await fetch(url, init);
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -521,6 +527,13 @@ function cleanFeedMessage(msg = '') {
 
   const gathered = gatheredMessage(raw);
   if (gathered) return gathered;
+
+  if (
+    lower.includes('kintara data unavailable') ||
+    (lower.includes('route check skipped') && lower.includes('failed to fetch'))
+  ) {
+    return 'Refresh Kintara tab';
+  }
 
   if (lower.includes('wrong tool') || lower.includes('tool missing')) {
     const need = raw.match(/need ([^(·]+)/i)?.[1]?.trim() || raw.match(/equip an? ([^·]+)/i)?.[1]?.trim();
