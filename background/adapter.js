@@ -128,6 +128,23 @@ function backpackResources(bp = {}) {
   };
 }
 
+function resourceDeltas(prev = {}, next = {}) {
+  const labels = {
+    wood: '🪵 wood',
+    stone: '🪨 stone',
+    coal: '⚫ coal',
+    metal: '⛓ metal',
+    fish: '🎣 fish',
+    cookedFish: '🍲 cooked fish',
+  };
+  const out = [];
+  for (const [key, label] of Object.entries(labels)) {
+    const delta = Number(next[key] || 0) - Number(prev[key] || 0);
+    if (delta > 0) out.push(`+${delta} ${label}`);
+  }
+  return out;
+}
+
 function resourceLabel(kind) {
   const labels = {
     tree: '🪵 wood',
@@ -250,27 +267,29 @@ const kintara = {
     // 2) deltas vs prior snapshot
     let goldDelta = 0;
     const msgs = [];
-    if (lastSnap) {
-      goldDelta = snap.gold - lastSnap.gold;
-      if (snap.spawn && lastSnap.spawn && snap.spawn.realm !== lastSnap.spawn.realm) {
+    const prevSnap = lastSnap;
+    if (prevSnap) {
+      goldDelta = snap.gold - prevSnap.gold;
+      if (snap.spawn && prevSnap.spawn && snap.spawn.realm !== prevSnap.spawn.realm) {
         msgs.push(`moved → ${snap.spawn.realm}`);
       }
-      if (snap.hp !== lastSnap.hp) {
-        const arrow = snap.hp > lastSnap.hp ? '+' : '';
-        msgs.push(`hp ${arrow}${snap.hp - lastSnap.hp} → ${snap.hp}`);
+      if (snap.hp !== prevSnap.hp) {
+        const arrow = snap.hp > prevSnap.hp ? '+' : '';
+        msgs.push(`hp ${arrow}${snap.hp - prevSnap.hp} → ${snap.hp}`);
       }
-      if (snap.bpHash !== lastSnap.bpHash && goldDelta === 0) {
+      if (snap.bpHash !== prevSnap.bpHash && goldDelta === 0) {
         msgs.push('inventory changed');
       }
     } else {
       msgs.push(`signed in · ${j.player?.display_name || j.player?.id}`);
     }
-    lastSnap = snap;
     const baseResources = backpackResources(j.backpack);
     if (!liveResources) liveResources = { ...baseResources };
+    const resourceDeltaLines = prevSnap?.resources ? resourceDeltas(prevSnap.resources, baseResources) : [];
     for (const [key, value] of Object.entries(baseResources)) {
       liveResources[key] = Math.max(Number(liveResources[key] || 0), Number(value || 0));
     }
+    for (const line of resourceDeltaLines) msgs.push(line);
 
     // Track self-id for filtering WS events
     if (snap.pid) selfPlayerId = snap.pid;
@@ -336,6 +355,8 @@ const kintara = {
     if (goldDelta > 0) tick.gold = goldDelta;
     if (kinsDelta !== 0) tick.kins = kinsDelta;
     if (msgs.length) tick.msg = msgs.join(' · ');
+    lastSnap = snap;
+    lastSnap.resources = { ...baseResources };
     return tick;
   },
 
