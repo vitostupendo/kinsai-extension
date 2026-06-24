@@ -38,7 +38,7 @@ export class KintaraClient {
     if (this._tabIdHint != null) {
       try {
         const tab = await chrome.tabs.get(this._tabIdHint);
-        if (tab && KINTARA_MATCH.test(tab.url || '')) return tab;
+        if (tab && KINTARA_MATCH.test(tab.url || '')) return this._normalizeTab(tab);
       } catch { /* tab closed */ }
       this._tabIdHint = null;
     }
@@ -46,9 +46,21 @@ export class KintaraClient {
     const tabs = await chrome.tabs.query({
       url: KINTARA_TAB_URLS,
     });
-    const t = tabs.find((x) => x.active) || tabs[0] || null;
+    const t = tabs.find((x) => isCanonicalKintaraUrl(x.url) && x.active) ||
+      tabs.find((x) => isCanonicalKintaraUrl(x.url)) ||
+      tabs.find((x) => x.active) ||
+      tabs[0] ||
+      null;
     if (t) this._tabIdHint = t.id;
-    return t;
+    return t ? this._normalizeTab(t) : null;
+  }
+
+  async _normalizeTab(tab) {
+    if (!tab || !isLegacyKintaraUrl(tab.url)) return tab;
+    const url = canonicalKintaraUrl(tab.url);
+    const next = await chrome.tabs.update(tab.id, { url });
+    await waitForComplete(tab.id, 20_000).catch(() => {});
+    return next || { ...tab, url };
   }
 
   async _ensureTab(openIfMissing = false) {
@@ -245,4 +257,33 @@ function waitForComplete(tabId, timeoutMs) {
     };
     chrome.tabs.onUpdated.addListener(listener);
   });
+}
+
+function isCanonicalKintaraUrl(url = '') {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'kintara.com' || hostname.endsWith('.kintara.com');
+  } catch {
+    return false;
+  }
+}
+
+function isLegacyKintaraUrl(url = '') {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'kintara.gg' || hostname.endsWith('.kintara.gg');
+  } catch {
+    return false;
+  }
+}
+
+function canonicalKintaraUrl(url = '') {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.replace(/kintara\.gg$/i, 'kintara.com');
+    u.protocol = 'https:';
+    return u.toString();
+  } catch {
+    return 'https://kintara.com/';
+  }
 }

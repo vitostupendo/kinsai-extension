@@ -185,6 +185,14 @@ function getLastFocusedWindow() {
 async function ensureKintaraTab() {
   const live = await findKintaraTab();
   if (live) {
+    if (isLegacyKintaraUrl(live.url)) {
+      console.log('[kinsai/bg] migrating legacy kintara tab', { id: live.id, url: live.url });
+      const url = canonicalKintaraUrl(live.url);
+      await chrome.tabs.update(live.id, { url, active: true });
+      await waitForTabComplete(live.id, 20_000).catch(() => {});
+      await chrome.windows.update(live.windowId, { focused: true });
+      return { ...live, url };
+    }
     console.log('[kinsai/bg] reusing kintara tab', { id: live.id, url: live.url });
     await chrome.tabs.update(live.id, { active: true });
     await chrome.windows.update(live.windowId, { focused: true });
@@ -192,6 +200,26 @@ async function ensureKintaraTab() {
   }
   console.log('[kinsai/bg] no kintara tab found — opening new one');
   return chrome.tabs.create({ url: KINTARA_URL, active: true });
+}
+
+function isLegacyKintaraUrl(url = '') {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'kintara.gg' || hostname.endsWith('.kintara.gg');
+  } catch {
+    return false;
+  }
+}
+
+function canonicalKintaraUrl(url = '') {
+  try {
+    const u = new URL(url);
+    u.hostname = u.hostname.replace(/kintara\.gg$/i, 'kintara.com');
+    u.protocol = 'https:';
+    return u.toString();
+  } catch {
+    return KINTARA_URL;
+  }
 }
 
 function waitForTabComplete(tabId, timeoutMs) {
