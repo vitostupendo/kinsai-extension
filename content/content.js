@@ -258,11 +258,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, timeoutMs = 15_000 }) {
   if (!path) throw new Error('path required');
-  const usePageOrigin = isKintaraPageHost(location.hostname) && isKintaraApiHost(host);
+  const fanout = isFanoutHost(host);
+  const usePageOrigin = !fanout && isKintaraPageHost(location.hostname) && isKintaraApiHost(host);
   const requestHost = usePageOrigin ? location.hostname : host;
   const url = `https://${requestHost}${path}`;
   const sameOrigin = requestHost === location.hostname;
-  const credentials = host === 'fanout.kintara.com' ? 'omit' : 'include';
+  const credentials = fanout ? 'omit' : 'include';
   const init = {
     method,
     credentials,
@@ -280,7 +281,7 @@ async function kintaraFetch({ host = 'kintara.com', method = 'GET', path, body, 
     try {
       res = await fetch(sameOrigin ? path : url, init);
     } catch (err) {
-      if (!isKintaraApiHost(requestHost)) throw err;
+      if (fanout || !isKintaraApiHost(requestHost)) throw err;
       res = await fetch(alternateKintaraUrl(requestHost, path), init);
     }
   } finally {
@@ -300,10 +301,16 @@ function isKintaraPageHost(hostname) {
 }
 
 function isKintaraApiHost(hostname) {
+  if (isFanoutHost(hostname)) return false;
   return hostname === 'kintara.com' ||
     hostname.endsWith('.kintara.com') ||
     hostname === 'kintara.gg' ||
     hostname.endsWith('.kintara.gg');
+}
+
+function isFanoutHost(hostname) {
+  return hostname === 'fanout.kintara.com' ||
+    hostname === 'fanout.kintara.gg';
 }
 
 function alternateKintaraUrl(hostname, path) {
